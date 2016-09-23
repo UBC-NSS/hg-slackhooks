@@ -17,8 +17,7 @@ config_group = 'slackhooks'
 Config = namedtuple(
     'HgSlackHooksConfig',
     field_names=[
-        'token',
-        'org_name',
+        'webhook_urls',
         'repo_name',
         'commit_url',
         'username',
@@ -28,31 +27,34 @@ Config = namedtuple(
 
 
 def get_config(ui):
-    token = ui.config(config_group, 'token')
-    org_name = ui.config(config_group, 'org_name')
-    repo_name = ui.config(config_group, 'repo_name', default=None)
-    commit_url = ui.config(config_group, 'commit_url', default=None)
-    username = ui.config(config_group, 'username', default="mercurial")
-    icon_emoji = ui.config(config_group, 'icon_emoji', default=None)
-    icon_url = ui.config(config_group, 'icon_url', default=None)
+    settings = (('webhook_urls', None),
+                ('repo_name', None),
+                ('commit_url', None),
+                ('username', 'mercurial'),
+                ('icon_emoji', None),
+                ('icon_url', None))
 
-    return Config(token, org_name, repo_name, commit_url, username, icon_emoji,
-                  icon_url)
+    tupvals = [ui.config(config_group, key, default) for key, default in settings]
 
+    return Config(*tupvals) # pylint: disable=star-args
 
 def pushhook(node, hooktype, url, repo, source, ui, **kwargs):
     # pylint: disable=unused-argument,too-many-arguments
-    username = url[url.rfind('::')+2:]
     config = get_config(ui)
+    username = ui.username()
 
     changesets = get_changesets(repo, node)
     count = len(changesets)
     messages = render_changesets(ui, repo, changesets, config)
 
     ensure_plural = "s" if count > 1 else ""
-    ensure_repo_name = " to \"{0}\"".format(config.repo_name) if config.repo_name else ""
 
-    text = "{user} pushes {count} changeset{ensure_plural}{ensure_repo_name}:\n```{changes}```".format(
+    if config.repo_name is not None:
+        ensure_repo_name = " to \"{0}\"".format(config.repo_name) if config.repo_name else ""
+    else:
+        ensure_repo_name = " to \"{0}\"".format(repo.root)
+
+    text = "{user} pushed {count} changeset{ensure_plural}{ensure_repo_name}:\n```{changes}```".format(
         user=username,
         count=count,
         ensure_plural=ensure_plural,
@@ -71,7 +73,8 @@ def get_changesets(repo, node):
 def render_changesets(ui, repo, changesets, config):
     url = config.commit_url
     if url:
-        node_template = "<{url}{{node|short}}|{{node|short}}>".format(url=url)
+        url = url.format(repo=repo.root, rev="{node|short}")
+        node_template = "<{url}|{{node|short}}>".format(url=url)
     else:
         node_template = "{node|short}"
 
@@ -90,18 +93,18 @@ def render_changesets(ui, repo, changesets, config):
 
 
 def post_message_to_slack(message, config):
-    target_url = "https://{org_name}.slack.com/services/hooks/incoming-webhook?token={token}".format(
-        org_name=config.org_name,
-        token=config.token)
-    payload = {
-        'text': message,
-        'username': config.username,
-    }
-    payload_optional_key(payload, config, 'icon_url')
-    payload_optional_key(payload, config, 'icon_emoji')
-    request = urllib2.Request(target_url, "payload={0}".format(json.dumps(payload)))
-    urllib2.build_opener().open(request)
+    for target_url in config.webhook_urls.split():
+        payload = {
+            'text': message,
+        }
+        if config.username is not None:
+            payload['username'] = config.username
 
+        payload_optional_key(payload, config, 'icon_url')
+        payload_optional_key(payload, config, 'icon_emoji')
+        request = urllib2.Request(target_url, "payload={0}".format(json.dumps(payload)))
+        print "payload:", json.dumps(payload)
+        urllib2.build_opener().open(request)
 
 def payload_optional_key(payload, config, key):
     value = config.__getattribute__(key)
