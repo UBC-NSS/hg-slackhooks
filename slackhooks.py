@@ -30,7 +30,7 @@ def get_config(ui):
     settings = (('webhook_urls', None),
                 ('repo_name', None),
                 ('commit_url', None),
-                ('username', 'mercurial'),
+                ('username', None),
                 ('icon_emoji', None),
                 ('icon_url', None))
 
@@ -97,7 +97,7 @@ def post_message_to_slack(message, config):
         payload = {
             'text': message,
         }
-        if config.username is not None:
+        if config.username:
             payload['username'] = config.username
 
         payload_optional_key(payload, config, 'icon_url')
