@@ -1,10 +1,17 @@
 # -*- coding: utf-8 -*-
+
+"""
+  HG changegroup hook that submits information to a slack incoming webhook
+"""
+
 import urllib2
 import json
 
 from collections import namedtuple
 from mercurial.cmdutil import show_changeset
 
+
+# pylint: disable=invalid-name, missing-docstring
 
 config_group = 'slackhooks'
 Config = namedtuple(
@@ -34,6 +41,7 @@ def get_config(ui):
 
 
 def pushhook(node, hooktype, url, repo, source, ui, **kwargs):
+    # pylint: disable=unused-argument,too-many-arguments
     username = url[url.rfind('::')+2:]
     config = get_config(ui)
 
