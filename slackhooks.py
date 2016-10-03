@@ -8,54 +8,71 @@ import urllib2
 import json
 
 from collections import namedtuple
+from mercurial import util
 from mercurial.cmdutil import show_changeset
 
 
 # pylint: disable=invalid-name, missing-docstring
 
+Defaults = (
+    ('webhook_urls', None),  # List of Slack POST URLs
+    ('repo_name', None),     # Optional config-hardcoded name for the repo.
+    ('web_strip', 0),        # Optional num leading slashes to remove from abs path of a repo to form web path
+    ('commit_url', None),    # Optional templated URL to view diff
+    ('username', None),      # Optional username to use as the source of a message
+    ('icon_emoji', None),    # Optional emoji to display next to the message on Slack
+    ('icon_url', None))      # Optional instead of an emoji, display that url as the sender on Slack
+
 config_group = 'slackhooks'
 Config = namedtuple(
     'HgSlackHooksConfig',
-    field_names=[
-        'webhook_urls',
-        'repo_name',
-        'commit_url',
-        'username',
-        'icon_emoji',
-        'icon_url',
-    ])
+    field_names=[default[0] for default in Defaults])
 
+def web_path(path, config):
+    '''strip leading slashes from local path, turn into web-safe path.'''
+    path = util.pconvert(path)
+    count = config.web_strip
+    while count > 0:
+        c = path.find('/')
+        if c == -1:
+            break
+        path = path[c+1:]
+        count -= 1
+    return path
 
 def get_config(ui):
-    settings = (('webhook_urls', None),
-                ('repo_name', None),
-                ('commit_url', None),
-                ('username', None),
-                ('icon_emoji', None),
-                ('icon_url', None))
+    def _parse_setting(key, defval):
+        if isinstance(defval, bool):
+            val = ui.configbool(config_group, key, defval)
+        elif isinstance(defval, int):
+            val = int(ui.config(config_group, key, defval))
+        else:
+            val = ui.config(config_group, key, defval)
+        return val
 
-    tupvals = [ui.config(config_group, key, default) for key, default in settings]
+    tupvals = [_parse_setting(key, deflt) for key, deflt in Defaults]
 
-    return Config(*tupvals) # pylint: disable=star-args
+    return Config(*tupvals)
 
 def pushhook(node, hooktype, url, repo, source, ui, **kwargs):
     # pylint: disable=unused-argument,too-many-arguments
-    config = get_config(ui)
-    username = ui.username()
 
+    config = get_config(ui)
     changesets = get_changesets(repo, node)
     count = len(changesets)
     messages = render_changesets(ui, repo, changesets, config)
 
     ensure_plural = "s" if count > 1 else ""
 
+    webroot = web_path(repo.root, config)
+
     if config.repo_name is not None:
         ensure_repo_name = " to \"{0}\"".format(config.repo_name) if config.repo_name else ""
     else:
-        ensure_repo_name = " to \"{0}\"".format(repo.root)
+        ensure_repo_name = " to \"{0}\"".format(webroot)
 
     text = "{user} pushed {count} changeset{ensure_plural}{ensure_repo_name}:\n```{changes}```".format(
-        user=username,
+        user=ui.username(),
         count=count,
         ensure_plural=ensure_plural,
         ensure_repo_name=ensure_repo_name,
@@ -72,8 +89,14 @@ def get_changesets(repo, node):
 
 def render_changesets(ui, repo, changesets, config):
     url = config.commit_url
+
+    webroot = web_path(repo.root, config)
+
     if url:
-        url = url.format(repo=repo.root, rev="{node|short}")
+        url = url.format(reporoot=repo.root,
+                         webroot=webroot,
+                         reponame=config.repo_name,
+                         rev="{node|short}")
         node_template = "<{url}|{{node|short}}>".format(url=url)
     else:
         node_template = "{node|short}"
