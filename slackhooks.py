@@ -126,7 +126,7 @@ def post_message_to_slack(message, config):
         payload_optional_key(payload, config, 'icon_url')
         payload_optional_key(payload, config, 'icon_emoji')
         request = urllib2.Request(target_url, "payload={0}".format(json.dumps(payload)))
-        print "payload:", json.dumps(payload)
+        #print "payload:", json.dumps(payload)
         urllib2.build_opener().open(request)
 
 def payload_optional_key(payload, config, key):
