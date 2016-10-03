@@ -35,7 +35,7 @@ receiving changesets::
 
 Example of output on Slack:
 
-.. image:: http://imgur.com/1omf7Mh
+.. image:: http://imgur.com/1omf7Mh.png
     :alt: Mercurial push hook chat message
     :align: center
 
