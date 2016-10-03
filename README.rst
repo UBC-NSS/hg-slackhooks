@@ -33,9 +33,9 @@ receiving changesets::
     [hooks]
     changegroup.slackhooks= python:/path/to/slackhooks.py:pushhook
 
-Example of chat message output:
+Example of output on Slack:
 
-.. image:: http://i.imgur.com/Ivcctgq.png
+.. image:: http://imgur.com/1omf7Mh
     :alt: Mercurial push hook chat message
     :align: center
 
