@@ -6,9 +6,11 @@
 
 import urllib2
 import json
+import os
 
 from collections import namedtuple
 from mercurial import util
+from mercurial.i18n import _
 from mercurial.cmdutil import show_changeset
 
 
@@ -71,13 +73,16 @@ def pushhook(node, hooktype, url, repo, source, ui, **kwargs):
     else:
         ensure_repo_name = " to \"{0}\"".format(webroot)
 
+    push_user = os.environ.get("LOGNAME") or ui.username()
+
     text = "{user} pushed {count} changeset{ensure_plural}{ensure_repo_name}:\n```{changes}```".format(
-        user=ui.username(),
+        user=push_user,
         count=count,
         ensure_plural=ensure_plural,
         ensure_repo_name=ensure_repo_name,
         changes=messages)
-
+    num_hooks = len(config.webhook_urls.split())
+    ui.status(_('slackhooks: submitting %d notification(s) to slack\n') % (num_hooks,))
     post_message_to_slack(text, config)
 
 
@@ -127,7 +132,6 @@ def post_message_to_slack(message, config):
         payload_optional_key(payload, config, 'icon_url')
         payload_optional_key(payload, config, 'icon_emoji')
         request = urllib2.Request(target_url, "payload={0}".format(json.dumps(payload)))
-        #print "payload:", json.dumps(payload)
         urllib2.build_opener().open(request)
 
 def payload_optional_key(payload, config, key):
