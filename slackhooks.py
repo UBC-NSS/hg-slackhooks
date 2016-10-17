@@ -105,6 +105,7 @@ def render_changesets(ui, repo, changesets, config):
         "{branch}",
         node_template,
         "{date(date, '%Y-%m-%d [%H:%M:%S]')}",
+        "{author|user}",
         "{desc|strip|firstline}",
     ]))
 
